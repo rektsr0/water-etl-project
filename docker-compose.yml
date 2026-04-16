@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-water_db}
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      WATER_ETL_USE_POSTGRES: "1"
+      WATER_ETL_PG_HOST: db
+      WATER_ETL_PG_PORT: "5432"
+      WATER_ETL_PG_DB: ${POSTGRES_DB:-water_db}
+      WATER_ETL_JDBC_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-water_db}
+      WATER_ETL_DB_USER: ${POSTGRES_USER}
+      WATER_ETL_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    # Spark downloads the PostgreSQL JDBC jar on first run (requires outbound network once).
+
+volumes:
+  pgdata:

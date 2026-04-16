@@ -1,0 +1,6 @@
+# Core ETL
+pyspark>=3.5.0
+pandas>=2.0.0
+
+# Optional: PostgreSQL analytics / matching JDBC driver usage on workers
+psycopg2-binary>=2.9.9

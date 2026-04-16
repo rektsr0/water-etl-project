@@ -1,0 +1,41 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment and secrets (never commit real credentials)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local DB artifacts
+data/water.db
+*.db-journal
+
+# Regenerated for Power BI / reporting
+data/exports/*.csv
+
+# Spark / Hive scratch (if created locally)
+spark-warehouse/
+metastore_db/
+derby.log
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
