@@ -6,7 +6,7 @@ It mirrors patterns common in regulated water utilities and Databricks-style Spa
 
 ## What the pipeline does
 
-1. **Extract** — Reads `data/water_sensor.csv` into a Spark `DataFrame` (header + inferred schema).
+1. **Extract** — Reads `data/water_sensor.csv` into a Spark `DataFrame` (header + inferred schema). Sample rows use **facility-style site names** (e.g. pump stations, pressure zones); one site includes a **step-down in pressure** over time for leak-detection demos in Power BI.
 2. **Transform** — Drops incomplete rows, casts numeric fields, flags **possible leaks** when pressure falls below a threshold (`is_leak`), and builds **per-location aggregates** (average pressure and flow).
 3. **Load** — Writes cleaned rows to `sensor_data` and aggregates to `sensor_agg_by_location`:
    - **Default:** SQLite database at `data/water.db` (no server required; uses Pandas for the write).
