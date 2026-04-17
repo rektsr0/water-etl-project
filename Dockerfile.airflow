@@ -1,0 +1,19 @@
+# Airflow image with Java + project deps so PySpark tasks can run in the worker.
+FROM apache/airflow:2.10.0-python3.11
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openjdk-17-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV WATER_ETL_PROJECT_ROOT=/opt/water-etl
+ENV PYTHONPATH=/opt/water-etl
+
+USER airflow
+WORKDIR /opt/water-etl
+
+COPY requirements.txt /opt/water-etl/requirements.txt
+RUN pip install --no-cache-dir -r /opt/water-etl/requirements.txt
+
+COPY --chown=airflow:root . /opt/water-etl

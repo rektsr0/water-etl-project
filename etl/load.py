@@ -91,13 +91,7 @@ def load_medallion(
     *,
     use_postgres: bool | None = None,
 ) -> Path | None:
-    """
-    Write bronze → silver → gold tables.
-
-    Table names: ``bronze_sensor_data``, ``silver_sensor_data``,
-    ``gold_sensor_agg_by_location``, ``gold_leaks_by_location``,
-    ``gold_daily_pressure_summary``.
-    """
+    """Persist all medallion tables (SQLite or JDBC per env)."""
     postgres = use_postgres if use_postgres is not None else os.environ.get("WATER_ETL_USE_POSTGRES", "").lower() in (
         "1",
         "true",

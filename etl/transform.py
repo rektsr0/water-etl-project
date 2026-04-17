@@ -11,14 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_silver(df_bronze: DataFrame) -> DataFrame:
-    """
-    Silver layer: validated sensor readings with consistent types and ``is_leak``.
-
-    - Drops rows missing pressure, flow_rate, or location
-    - Casts timestamp, pressure, flow_rate
-    - Adds ``is_leak`` when pressure < 30 (demo threshold)
-    - Preserves bronze lineage columns ``ingested_at``, ``source_file`` when present
-    """
+    """Drop incomplete rows; cast types; ``is_leak`` = 1 when pressure < 30 psi."""
     df = df_bronze.dropna(subset=["pressure", "flow_rate", "location"])
 
     df = df.withColumn("timestamp", col("timestamp").cast("timestamp"))
@@ -35,18 +28,7 @@ def build_silver(df_bronze: DataFrame) -> DataFrame:
 
 
 def build_gold(df_silver: DataFrame) -> tuple[DataFrame, DataFrame, DataFrame]:
-    """
-    Gold layer: business-ready tables for SQL / Power BI.
-
-    Returns
-    -------
-    gold_sensor_agg_by_location
-        Per-site avg pressure/flow and ``reading_count`` (for weighted global averages).
-    gold_leaks_by_location
-        Count of leak-flagged readings per location.
-    gold_daily_pressure_summary
-        Calendar-day averages by location for trend / operational reporting.
-    """
+    """Returns ``(agg_by_location, leaks_by_location, daily_by_date_location)``."""
     df_agg = df_silver.groupBy("location").agg(
         avg("pressure").alias("avg_pressure"),
         avg("flow_rate").alias("avg_flow"),

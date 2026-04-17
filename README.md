@@ -1,18 +1,16 @@
 # Smart Water Infrastructure ETL Pipeline
 
-This project simulates a utility-style batch pipeline: **ingest raw sensor data (bronze) → cleanse and engineer features (silver) → reporting-ready aggregates (gold) → SQL analytics and Power BI exports**.
+Batch ETL: **bronze (raw) → silver (cleansed + features) → gold (aggregates) → SQL analytics and optional Power BI exports**.
 
-It mirrors **medallion-style** layering and Databricks-style Spark jobs (JDBC sinks, curated gold for consumers).
+Uses PySpark for transforms and JDBC or SQLite for storage; table layout follows a medallion pattern.
 
 ## Medallion layers (bronze / silver / gold)
 
 | Layer | Table(s) | Purpose |
 |-------|-----------|---------|
 | **Bronze** | `bronze_sensor_data` | Raw ingested rows from `data/water_sensor.csv` plus **`ingested_at`** and **`source_file`**. Close to source; nulls and raw types preserved. |
-| **Silver** | `silver_sensor_data` | Cleansed, typed readings with **`is_leak`** (pressure &lt; 30 psi demo rule). Core dataset for downstream jobs and detail visuals. |
+| **Silver** | `silver_sensor_data` | Cleansed, typed readings with **`is_leak`** when pressure &lt; 30 psi. Core dataset for downstream jobs and detail visuals. |
 | **Gold** | `gold_sensor_agg_by_location`, `gold_leaks_by_location`, `gold_daily_pressure_summary` | Business-ready summaries: per-site averages (**with `reading_count`** for weighted means), leak counts, and daily averages by location for dashboards. |
-
-**Interview line:** *“Bronze stores raw ingested telemetry; silver applies validation, typing, and leak detection; gold holds curated aggregates so analytics and Power BI read stable reporting tables instead of raw operational data.”*
 
 ### Data dictionary (short)
 
@@ -22,7 +20,7 @@ It mirrors **medallion-style** layering and Databricks-style Spark jobs (JDBC si
 
 ## What the pipeline does (stage order)
 
-1. **Extract** — Read CSV into Spark as **bronze** (minimal change + **`ingested_at`** / **`source_file`**). Sample data uses **facility-style site names**; one site has a **pressure step-down** for leak demos.
+1. **Extract** — Read CSV into Spark as **bronze** (minimal change + **`ingested_at`** / **`source_file`**). Sample data uses facility-style site names; one site shows a pressure drop for leak scenarios.
 2. **Silver** — `build_silver(bronze)`: drop incomplete rows, cast fields, add **`is_leak`**.
 3. **Gold** — `build_gold(silver)`: per-location averages + **`reading_count`**, leak counts by location, daily averages by location.
 4. **Load** — Write all layers to SQLite (`data/water.db`) or PostgreSQL via JDBC.
@@ -33,7 +31,7 @@ It mirrors **medallion-style** layering and Databricks-style Spark jobs (JDBC si
 - **Python**
 - **PySpark** (batch transforms)
 - **SQL** (SQLite or PostgreSQL)
-- **Pandas** (optional helper for SQLite load; convenient for local demos)
+- **Pandas** (SQLite load path)
 
 ## Prerequisites
 
@@ -79,11 +77,9 @@ python main.py
 
 With defaults, this writes **`data/water.db`** and runs analytics against SQLite.
 
-- **Analytics only** (after a successful run):  
-  `python main.py --analytics-only`
-
-- **Verbose logs:**  
-  `python main.py -v`
+- **Tests:** `pip install -r requirements-dev.txt` then `pytest` (`pytest -m "not integration"` skips the full Spark run).
+- **Analytics only** (after a successful run): `python main.py --analytics-only`
+- **Verbose logs:** `python main.py -v`
 
 ### Local Python + PostgreSQL (Spark JDBC)
 
@@ -108,7 +104,7 @@ water-etl-project/
 │   ├── exports/          # CSVs from export_for_powerbi.py (gitignored)
 │   └── water_sensor.csv
 ├── docs/
-│   └── POWER_BI.md       # Power BI walkthrough (gold + silver exports)
+│   └── POWER_BI.md       # Power BI: CSV load and visuals
 ├── etl/
 │   ├── config.py
 │   ├── extract.py        # Bronze extract only
@@ -118,22 +114,29 @@ water-etl-project/
 │   └── export_for_powerbi.py
 ├── sql/
 │   └── queries.sql       # Gold-first analytics
+├── airflow/
+│   ├── dags/
+│   │   └── water_etl_dag.py
+│   └── README.md         # How to run Airflow (Docker / local)
 ├── main.py               # Orchestrates layer order
 ├── docker-compose.yml
+├── docker-compose.airflow.yml
+├── Dockerfile.airflow
 ├── Dockerfile
 ├── docker-entrypoint.sh
 ├── .env.example
 ├── requirements.txt
+├── requirements-dev.txt
 └── README.md
 ```
 
 ## Power BI Desktop
 
-**Step-by-step dashboard build (clicks, visuals, model):** see **[docs/POWER_BI.md](docs/POWER_BI.md)**.
+Details: **[docs/POWER_BI.md](docs/POWER_BI.md)**.
 
-Power BI cannot open the SQLite file directly without an ODBC driver. Two easy options:
+Power BI does not read the SQLite file without an extra ODBC setup. Options:
 
-### A. CSV export (simplest)
+### A. CSV export
 
 After the pipeline has loaded data:
 
@@ -141,11 +144,11 @@ After the pipeline has loaded data:
 python scripts/export_for_powerbi.py
 ```
 
-CSVs are written to **`data/exports/`**: **gold** (`gold_sensor_agg_by_location.csv`, `gold_leaks_by_location.csv`, `gold_daily_pressure_summary.csv`), **silver** (`silver_sensor_data.csv`), plus **aliases** `sensor_data.csv`, `sensor_agg_by_location.csv`, `leaks_by_location.csv` for older tutorials.
+CSVs go to **`data/exports/`**: gold (`gold_sensor_agg_by_location.csv`, `gold_leaks_by_location.csv`, `gold_daily_pressure_summary.csv`), silver (`silver_sensor_data.csv`), and alias files `sensor_data.csv`, `sensor_agg_by_location.csv`, `leaks_by_location.csv`.
 
 In **Power BI Desktop**: **Get data** > **Text/CSV** > load gold files for summaries, silver (or `sensor_data`) for detail. In **Model**, relate **`location`** between gold aggregate and silver detail when both are used.
 
-**Suggested visuals (examples):**
+**Example visuals:**
 
 | Visual | Fields |
 |--------|--------|
@@ -161,8 +164,14 @@ Toggle **is_leak** as a legend or filter to highlight low-pressure readings.
 
 With Postgres running (e.g. `docker compose up` and port published), use **Get data** > **PostgreSQL database**. Load **`gold_*`** tables for reporting and **`silver_sensor_data`** for detail.
 
-## Resume-oriented notes
+## Apache Airflow
 
-- **Medallion layout** is explicit: bronze → silver → gold table names and stage order in **`main.run_pipeline()`**.
-- **Extract** is bronze-only; **transform** exposes **`build_silver`** and **`build_gold`**; **load** uses **`load_medallion`**.
-- **Structured logging** across stages; JDBC (Postgres) and SQLite paths for local demos.
+DAG runs `python main.py` then `scripts/export_for_powerbi.py`. See **[airflow/README.md](airflow/README.md)**.
+
+Docker (from repo root):
+
+```bash
+docker compose -f docker-compose.airflow.yml up --build
+```
+
+Open **http://localhost:8080** (default `admin` / `admin`), trigger DAG **`water_sensor_medallion_etl`**.

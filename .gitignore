@@ -39,3 +39,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local Airflow (if AIRFLOW_HOME points inside repo)
+airflow_home/
+

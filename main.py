@@ -1,6 +1,4 @@
-"""
-Smart Water Infrastructure ETL — medallion pipeline: bronze → silver → gold → SQL analytics.
-"""
+"""Water sensor ETL: bronze -> silver -> gold, then SQL analytics."""
 
 from __future__ import annotations
 
@@ -33,9 +31,7 @@ def _configure_logging(verbose: bool) -> None:
 
 
 def run_pipeline(spark: SparkSession | None = None) -> Path | None:
-    """
-    extract (bronze) → build_silver → build_gold → load_medallion (bronze + silver + all gold tables to SQL).
-    """
+    """extract -> build_silver -> build_gold -> load_medallion (all layers to SQL)."""
     own_spark = spark is None
     if own_spark:
         spark = build_spark_session()
@@ -43,19 +39,19 @@ def run_pipeline(spark: SparkSession | None = None) -> Path | None:
     try:
         logger.info("Starting water sensor medallion pipeline")
 
-        logger.info("Stage 1: Extract → bronze (raw + ingestion metadata)")
+        logger.info("Stage 1: Extract -> bronze (raw + ingestion metadata)")
         df_bronze = extract(spark)
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("Sample bronze rows:")
             df_bronze.show(5, truncate=False)
 
-        logger.info("Stage 2: Transform bronze → silver (cleanse, types, is_leak)")
+        logger.info("Stage 2: Transform bronze -> silver (cleanse, types, is_leak)")
         df_silver = build_silver(df_bronze)
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("Sample silver rows:")
             df_silver.show(10, truncate=False)
 
-        logger.info("Stage 3: Aggregate silver → gold (reporting tables)")
+        logger.info("Stage 3: Aggregate silver -> gold (reporting tables)")
         df_gold_agg, df_gold_leaks, df_gold_daily = build_gold(df_silver)
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("Gold aggregates:")

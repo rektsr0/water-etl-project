@@ -35,11 +35,7 @@ def build_spark_session(app_name: str = "WaterETL") -> SparkSession:
 
 
 def extract(spark: SparkSession, csv_path: str | os.PathLike[str] | None = None) -> DataFrame:
-    """
-    Bronze extract: load ``water_sensor.csv`` as-is (header + inferred types) plus ingestion metadata.
-
-    No cleansing here beyond what Spark infers from the file. Downstream ``build_silver`` applies rules.
-    """
+    """Load CSV to bronze with ``ingested_at`` and ``source_file``; cleansing is in ``build_silver``."""
     path = Path(csv_path) if csv_path is not None else _project_root() / "data" / "water_sensor.csv"
     resolved = path.resolve()
     resolved_str = str(resolved)

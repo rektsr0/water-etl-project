@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""
-Export gold (and optional silver) tables to CSV for Power BI Desktop.
-
-Reads from data/water.db (default) or PostgreSQL when WATER_ETL_USE_POSTGRES=1.
-Run after: python main.py
-"""
+"""Export gold and silver tables to CSV for Power BI (SQLite or Postgres per env)."""
 
 from __future__ import annotations
 
@@ -48,7 +43,6 @@ def main() -> int:
         return 1
 
     try:
-        # Gold layer (primary for dashboards)
         pd.read_sql_query("SELECT * FROM gold_sensor_agg_by_location", conn).to_csv(
             out_dir / "gold_sensor_agg_by_location.csv", index=False
         )

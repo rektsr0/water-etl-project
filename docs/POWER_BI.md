@@ -20,7 +20,7 @@ Exports live in **`data/exports/`**. Prefer **gold** CSVs for summary visuals; u
 
 ## 1. Get data
 
-**Home** → **Get data** → **Text/CSV** → load the files you need → **Transform data** (recommended).
+**Home** → **Get data** → **Text/CSV** → load the files you need → **Transform data** if needed.
 
 ### Types (Power Query)
 
@@ -38,7 +38,7 @@ Exports live in **`data/exports/`**. Prefer **gold** CSVs for summary visuals; u
 
 ---
 
-## 3. Suggested visuals
+## 3. Example visuals
 
 ### KPI cards
 
@@ -62,7 +62,7 @@ From **silver** (detail): **Average** of `pressure` and `flow_rate` (not Sum).
 
 **Slicer** or **filter on visual**: `location` = e.g. **Mason Hill Booster**.
 
-**Analytics** (format pane) → **Constant line** on Y at **30** (demo low-pressure threshold).
+**Analytics** (format pane) → **Constant line** on Y at **30** (matches the silver leak threshold).
 
 ### Daily trend (gold)
 
@@ -72,4 +72,4 @@ From **silver** (detail): **Average** of `pressure` and `flow_rate` (not Sum).
 
 ## 4. PostgreSQL instead of CSV
 
-**Get data** → **PostgreSQL** → load **`gold_*`** and **`silver_sensor_data`** tables. Same visuals; gold is the default for reporting consumers.
+**Get data** → **PostgreSQL** → load **`gold_*`** and **`silver_sensor_data`** tables. Same visuals as above; prefer gold tables for summaries.
