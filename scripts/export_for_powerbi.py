@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Export ETL tables to CSV for Power BI Desktop (Get Data > Text/CSV).
+Export gold (and optional silver) tables to CSV for Power BI Desktop.
 
 Reads from data/water.db (default) or PostgreSQL when WATER_ETL_USE_POSTGRES=1.
 Run after: python main.py
@@ -9,6 +9,7 @@ Run after: python main.py
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -47,28 +48,29 @@ def main() -> int:
         return 1
 
     try:
-        pd.read_sql_query("SELECT * FROM sensor_data", conn).to_csv(
-            out_dir / "sensor_data.csv", index=False
+        # Gold layer (primary for dashboards)
+        pd.read_sql_query("SELECT * FROM gold_sensor_agg_by_location", conn).to_csv(
+            out_dir / "gold_sensor_agg_by_location.csv", index=False
         )
-        pd.read_sql_query("SELECT * FROM sensor_agg_by_location", conn).to_csv(
-            out_dir / "sensor_agg_by_location.csv", index=False
+        pd.read_sql_query("SELECT * FROM gold_leaks_by_location", conn).to_csv(
+            out_dir / "gold_leaks_by_location.csv", index=False
         )
-        pd.read_sql_query(
-            """
-            SELECT location, COUNT(*) AS leak_count
-            FROM sensor_data
-            WHERE is_leak = 1
-            GROUP BY location
-            """,
-            conn,
-        ).to_csv(out_dir / "leaks_by_location.csv", index=False)
+        pd.read_sql_query("SELECT * FROM gold_daily_pressure_summary", conn).to_csv(
+            out_dir / "gold_daily_pressure_summary.csv", index=False
+        )
+        pd.read_sql_query("SELECT * FROM silver_sensor_data", conn).to_csv(
+            out_dir / "silver_sensor_data.csv", index=False
+        )
+        shutil.copy(out_dir / "gold_sensor_agg_by_location.csv", out_dir / "sensor_agg_by_location.csv")
+        shutil.copy(out_dir / "gold_leaks_by_location.csv", out_dir / "leaks_by_location.csv")
+        shutil.copy(out_dir / "silver_sensor_data.csv", out_dir / "sensor_data.csv")
     finally:
         conn.close()
 
     print(f"Exported CSVs to {out_dir.resolve()}")
-    print("  - sensor_data.csv")
-    print("  - sensor_agg_by_location.csv")
-    print("  - leaks_by_location.csv")
+    print("  Gold: gold_sensor_agg_by_location.csv, gold_leaks_by_location.csv, gold_daily_pressure_summary.csv")
+    print("  Silver: silver_sensor_data.csv")
+    print("  Aliases: sensor_agg_by_location.csv, leaks_by_location.csv, sensor_data.csv")
     return 0
 
 

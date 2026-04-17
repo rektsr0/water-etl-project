@@ -1,5 +1,5 @@
 """
-Smart Water Infrastructure ETL — orchestrates extract, transform, load, and optional SQL analytics.
+Smart Water Infrastructure ETL — medallion pipeline: bronze → silver → gold → SQL analytics.
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ from pyspark.sql import SparkSession
 
 from etl.config import DatabaseConfigError, psycopg2_kwargs
 from etl.extract import build_spark_session, extract
-from etl.load import load
-from etl.transform import transform
+from etl.load import load_medallion
+from etl.transform import build_gold, build_silver
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -24,7 +24,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 def _configure_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
-    # Use stdout so log lines interleave correctly with print() (Spark also uses stderr for JVM logs).
     logging.basicConfig(
         level=level,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -34,27 +33,43 @@ def _configure_logging(verbose: bool) -> None:
 
 
 def run_pipeline(spark: SparkSession | None = None) -> Path | None:
-    """Extract → transform → load. Stops Spark if this function created the session."""
+    """
+    extract (bronze) → build_silver → build_gold → load_medallion (bronze + silver + all gold tables to SQL).
+    """
     own_spark = spark is None
     if own_spark:
         spark = build_spark_session()
 
     try:
-        logger.info("Starting water sensor ETL pipeline")
-        df = extract(spark)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Sample raw rows:")
-            df.show(5, truncate=False)
+        logger.info("Starting water sensor medallion pipeline")
 
-        df_clean, df_agg = transform(df)
+        logger.info("Stage 1: Extract → bronze (raw + ingestion metadata)")
+        df_bronze = extract(spark)
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Sample cleaned rows:")
-            df_clean.show(10, truncate=False)
-            logger.debug("Aggregates by location:")
-            df_agg.show(truncate=False)
+            logger.debug("Sample bronze rows:")
+            df_bronze.show(5, truncate=False)
 
-        db_path = load(df_clean, df_agg)
-        logger.info("Loaded data successfully - pipeline steps complete")
+        logger.info("Stage 2: Transform bronze → silver (cleanse, types, is_leak)")
+        df_silver = build_silver(df_bronze)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Sample silver rows:")
+            df_silver.show(10, truncate=False)
+
+        logger.info("Stage 3: Aggregate silver → gold (reporting tables)")
+        df_gold_agg, df_gold_leaks, df_gold_daily = build_gold(df_silver)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Gold aggregates:")
+            df_gold_agg.show(truncate=False)
+
+        logger.info("Stage 4: Load bronze, silver, and gold to SQL")
+        db_path = load_medallion(
+            df_bronze,
+            df_silver,
+            df_gold_agg,
+            df_gold_leaks,
+            df_gold_daily,
+        )
+        logger.info("Pipeline complete - all medallion layers written")
         return db_path
     finally:
         if own_spark:
@@ -77,7 +92,7 @@ def run_analytics_sql(
     sqlite_path: Path | None = None,
     queries_path: Path | None = None,
 ) -> None:
-    """Execute analytical queries from sql/queries.sql (default: SQLite after ETL)."""
+    """Execute analytical queries from sql/queries.sql (gold-layer consumers)."""
     qp = queries_path or PROJECT_ROOT / "sql" / "queries.sql"
     statements = _read_sql_queries(qp)
     if not statements:
@@ -147,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
 
     db_path = run_pipeline()
     logger.info("")
-    logger.info("--- Analytics (from sql/queries.sql) ---")
+    logger.info("--- Analytics (from sql/queries.sql, gold layer) ---")
     run_analytics_sql(sqlite_path=db_path)
     return 0
 
