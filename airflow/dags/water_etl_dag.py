@@ -11,7 +11,6 @@ from pathlib import Path
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-# DAG uses schedule_interval=None; edit the DAG object to add a schedule.
 DEFAULT_ARGS = {
     "owner": "water-etl",
     "depends_on_past": False,
