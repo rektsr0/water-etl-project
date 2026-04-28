@@ -32,6 +32,7 @@ Uses PySpark for transforms and JDBC or SQLite for storage; table layout follows
 - **PySpark** (batch transforms)
 - **SQL** (SQLite or PostgreSQL)
 - **Pandas** (SQLite load path)
+- **PyTest** 
 
 ## Prerequisites
 
